@@ -1,181 +1,288 @@
 package HW9;
 
 import java.io.*;
-import java.util.Scanner;
 
 /**
  * @author Sherafgan Kandov
+ *         21.10.2015
  */
 public class DBStorage implements IDBStorage {
+    private static final int ID_LENGTH = 5;
+    private static final int NAME_LENGTH = 20;
+    private static final int EMAIL_LENGTH = 40;
+    private static final int DESIGNATION_LENGTH = 15;
+    private static final int ADDRESS_LENGTH = 40;
+
+    private static final int TABLE_1_TUPLE_LENGTH = ID_LENGTH + NAME_LENGTH + EMAIL_LENGTH + ADDRESS_LENGTH; // 105 + 1(TAB) = 106
+    private static final int TABLE_2_TUPLE_LENGTH = ID_LENGTH + NAME_LENGTH + DESIGNATION_LENGTH + ADDRESS_LENGTH; // 80 + 1(TAB) = 81
+
+    private static int[] sizesOfRecords = new int[]{TABLE_1_TUPLE_LENGTH, TABLE_2_TUPLE_LENGTH};
+
+    private static final int DATA_LENGTH = 1000000;
+    private static final int TABLE_1_METADATA_LENGTH = 56000; // 9433 + 1(TAB) + 18 + 270 + 3600 + 42170 = 55492 ~ 56000
+    private static final int TABLE_2_METADATA_LENGTH = 76000; // 12 345 + 1(TAB) + 18 + 270 + 3600 + 45000 + 14076 = 75310 ~ 76000
+
+    private static final int TABLE_1_FILE_LENGTH = DATA_LENGTH + TABLE_1_METADATA_LENGTH; // 1 000 000 + 56 000 = 1 056 000
+    private static final int TABLE_2_FILE_LENGTH = DATA_LENGTH + TABLE_2_METADATA_LENGTH; // 1 000 000 + 76 000 = 1 076 000
+
     private static final String TAB = "\t";
-    private static final String EMPTY = "";
     private static final String SPACE = " ";
+    private static final String EMPTY = "";
 
-    private static final int NOT_FOUND = -1;
+    private static final String[] NAMES_OF_TABLES = new String[]{"Students.txt", "Employees.txt"};
 
-    private static final String TABLE_1 = "Students.txt";
-    private static final String TABLE_2 = "Employees.txt";
+    private static final long METADATA_BEGINNING_POSITION = 1000001;
 
-    private static final int ZERO_CHAR = 79; //ASCII
-
-    private static final int CAPACITY = 10000;
-
-    private String[] data;
-
-    private int[] sizesOfTables = new int[2];
-
-    private static final int TABLE_1_INDEX = 0;
-    private static final int TABLE_2_INDEX = 1;
+    private long cursorInFile;
 
     public DBStorage() throws IOException {
-        sizesOfTables[TABLE_1_INDEX] = 0;
-        sizesOfTables[TABLE_2_INDEX] = 0;
-
-        data = new String[CAPACITY];
-        PrintWriter studentTable = new PrintWriter(new BufferedWriter(new FileWriter(TABLE_1)));
-        PrintWriter employeeTable = new PrintWriter(new BufferedWriter(new FileWriter(TABLE_2)));
-
-        for (int i = 0; i < data.length; i++) {
-            data[i] = EMPTY;
+        PrintWriter studentTable = new PrintWriter(new BufferedWriter(new FileWriter(NAMES_OF_TABLES[0])));
+        PrintWriter employeeTable = new PrintWriter(new BufferedWriter(new FileWriter(NAMES_OF_TABLES[1])));
+        for (int i = 0; i < TABLE_1_FILE_LENGTH; i++) {
+            studentTable.write(SPACE);
+        }
+        for (int i = 0; i < TABLE_2_FILE_LENGTH; i++) {
+            employeeTable.write(SPACE);
         }
 
-        String metadata = "0\t0";
-
-        data[data.length - 1] = metadata;
-
-        writeDataToArray(studentTable, data);
         studentTable.close();
-
-        writeDataToArray(employeeTable, data);
         employeeTable.close();
-    }
 
-    private void writeDataToArray(PrintWriter printWriter, String[] data) {
-        for (int i = 0; i < data.length; i++) {
-            printWriter.write(data[i]);
-            if (i != data.length - 1) {
-                printWriter.println();
-            }
-        }
+        String initialMetadata = SPACE + TAB + SPACE + TAB + 0;
+
+        RandomAccessFile studentTableRAF = new RandomAccessFile(NAMES_OF_TABLES[0], "rws");
+        RandomAccessFile employeeTableRAF = new RandomAccessFile(NAMES_OF_TABLES[1], "rws");
+
+        studentTableRAF.seek(METADATA_BEGINNING_POSITION);
+        employeeTableRAF.seek(METADATA_BEGINNING_POSITION);
+
+        studentTableRAF.write(initialMetadata.getBytes());
+        employeeTableRAF.write(initialMetadata.getBytes());
+
+        studentTable.close();
+        employeeTable.close();
+
+        cursorInFile = 0;
     }
 
 
     @Override
     public void insert(int tableDeterminant, String id, String name, String emailOrDesignation, String address) throws IOException {
-        readDataToArray(tableDeterminant);
-        String[] metadata = data[data.length - 1].trim().split("\\t");
-        String newTuple = id + TAB + name + TAB + emailOrDesignation + TAB + address;
-        int indexToInsertTo = Integer.parseInt(metadata[1]);
-        data[indexToInsertTo] = newTuple;
-        sizesOfTables[tableDeterminant - 1]++;
-        String metadataToWrite = metadataGen(Integer.parseInt(metadata[0]), tableDeterminant);
-        data[data.length - 1] = metadataToWrite;
-        writeDataToArray(tableDeterminant);
-    }
+        String newRecord = makeRecord(tableDeterminant, id, name, emailOrDesignation, address);
+//        String newRecord = id + SPACE + name + SPACE + emailOrDesignation + SPACE + address + TAB;
+        RandomAccessFile table = new RandomAccessFile(NAMES_OF_TABLES[tableDeterminant - 1], "rws");
+        table.seek(METADATA_BEGINNING_POSITION);
 
-    private String metadataGen(int i, int tableDeterminant) {
-        return i + "1" + TAB + sizesOfTables[tableDeterminant - 1];
+        String metadataLine = table.readLine();
+        String[] metadata = metadataLine.split("\\t");
+
+        boolean isSpaceBetweenRecords = false;
+        int placeToInsert = -1;
+
+        for (int i = 0; i < metadata[0].length(); i++) {
+            if (metadata[0].charAt(i) == '0') {
+                if (!isSpaceBetweenRecords) {
+                    isSpaceBetweenRecords = true;
+                    placeToInsert = i;
+                }
+            }
+        }
+
+        String newMetadata;
+        if (isSpaceBetweenRecords) {
+            table.seek(placeToInsert * sizesOfRecords[tableDeterminant - 1]);
+            table.write(newRecord.getBytes());
+
+            char[] part1Chars = metadata[0].toCharArray();
+            String newPart1 = EMPTY;
+            for (int i = 0; i < part1Chars.length; i++) {
+                if (placeToInsert == i) {
+                    newPart1 = newPart1 + '1';
+                } else {
+                    newPart1 = newPart1 + part1Chars[i];
+                }
+            }
+
+            String[] part2 = metadata[1].split("\\s");
+            String newPart2 = EMPTY;
+            for (int i = 0; i < part2.length; i++) {
+                if (placeToInsert == i) {
+                    newPart2 = newPart2 + SPACE + id + SPACE + part2[i];
+                } else {
+                    newPart2 = newPart2 + SPACE + part2[i];
+                }
+            }
+
+            newMetadata = newPart1 + TAB + newPart2;
+        } else {
+            table.seek(cursorInFile);
+            table.write(newRecord.getBytes());
+            cursorInFile = cursorInFile + newRecord.length();
+
+            metadata[0] = metadata[0] + 1;
+            metadata[0] = metadata[0].trim();
+            metadata[1] = metadata[1] + SPACE + id;
+            metadata[1] = metadata[1].trim();
+
+            newMetadata = metadata[0] + TAB + metadata[1];
+        }
+        metadata[2] = metadata[2].trim();
+        long amountOfRecords = Long.parseLong(metadata[2]);
+        amountOfRecords++;
+        newMetadata = newMetadata + TAB + amountOfRecords;
+
+        table.seek(METADATA_BEGINNING_POSITION);
+        table.write(newMetadata.getBytes());
+
+        table.close();
     }
 
     @Override
     public void delete(int tableDeterminant, String id, String name, String emailOrDesignation, String address) throws IOException {
-        readDataToArray(tableDeterminant);
-        String[] metadata = data[data.length - 1].trim().split("\\t");
-        char[] metadata1 = metadata[0].toCharArray();
-        int metadata2 = Integer.parseInt(metadata[1]);
-        String tupleToDelete = id + TAB + name + TAB + emailOrDesignation + TAB + address;
-        for (int i = 0; i < sizesOfTables[tableDeterminant - 1]; i++) {
-            if (tupleToDelete.equals(data[i])) {
-                data[i] = EMPTY;
-                metadata1[i] = ZERO_CHAR;
-                metadata2--;
+        int position = searchPos(tableDeterminant, id);
+        if (position == -1) {
+            System.out.println("RECORD NOT FOUND!");
+        } else {
+            RandomAccessFile table = new RandomAccessFile(NAMES_OF_TABLES[tableDeterminant - 1], "rws");
+            String toWrite = EMPTY;
+            for (int i = 0; i < sizesOfRecords[tableDeterminant - 1]; i++) {
+                toWrite = toWrite + SPACE;
             }
-        }
-        sizesOfTables[tableDeterminant - 1] = metadata2;
-        data[data.length - 1] = newMetadata(metadata1, metadata2);
-        compactData(tableDeterminant, data);
-        writeDataToArray(tableDeterminant);
-    }
+            table.seek(position);
+            table.write(toWrite.getBytes());
+            table.seek(METADATA_BEGINNING_POSITION);
 
-    private void compactData(int tableDeterminant, String[] data) {
-        for (int i = 0; i < sizesOfTables[tableDeterminant - 1]; i++) {
-            if (data[i].equals(EMPTY)) {
-                for (int j = i; j < sizesOfTables[tableDeterminant - 1]; j++) {
-                    data[j] = data[j + 1];
+            String metadataLine = table.readLine().trim();
+            String[] metadataParts = metadataLine.split("\\t");
+
+            char[] part1Metadata = metadataParts[0].toCharArray();
+            String[] part2Metadata = metadataParts[1].split("\\s");
+
+            int changer = -1;
+            for (int i = 0; i < part2Metadata.length; i++) {
+                if (part2Metadata[i].equals(id)) {
+                    part2Metadata[i] = EMPTY;
+                    changer = i;
                 }
             }
-        }
-        data[sizesOfTables[tableDeterminant - 1]] = EMPTY;
-    }
 
-    private String newMetadata(char[] metadata1, int metadata2) {
-        String newMetadata1 = EMPTY;
-        String newMetadata2 = "" + metadata2;
-        for (char c : metadata1) {
-            if (c != ZERO_CHAR) {
-                newMetadata1 = newMetadata1 + c;
+            char[] part1MetadataFinal = new char[part1Metadata.length];
+            for (int i = 0; i < part1MetadataFinal.length; i++) {
+                if (changer != i) {
+                    part1MetadataFinal[i] = part1Metadata[i];
+                }
             }
+            part1MetadataFinal[changer] = '0';
+
+            String newMetadata1 = EMPTY;
+            for (int i = 0; i < part1MetadataFinal.length; i++) {
+                newMetadata1 = newMetadata1 + part1MetadataFinal[i];
+            }
+
+            String newMetadata2 = EMPTY;
+            for (int i = 0; i < part2Metadata.length; i++) {
+                newMetadata2 = newMetadata2 + SPACE + part2Metadata[i];
+                newMetadata2 = newMetadata2.trim();
+            }
+
+            metadataParts[2] = metadataParts[2].trim();
+            int metadataPart3 = Integer.parseInt(metadataParts[2]);
+            metadataPart3--;
+
+            String newMetadata = newMetadata1 + TAB + newMetadata2 + TAB + metadataPart3;
+
+            for (int i = 0; i < (metadataLine.length() - newMetadata.length()) * 6; i++) {
+                newMetadata = newMetadata + SPACE;
+            }
+
+            table.seek(METADATA_BEGINNING_POSITION);
+            table.write(newMetadata.getBytes());
+
+            table.close();
         }
-        return newMetadata1 + TAB + newMetadata2;
     }
 
     @Override
-    public void update(int tableDeterminant, String oldId, String oldName, String oldEmailOrDesignation, String oldAddress, String id, String name, String emailOrDesignation, String address) throws IOException {
-        int indexToUpdate = search(tableDeterminant, oldId, oldName, oldEmailOrDesignation, oldAddress);
-        String newTuple = id + TAB + name + TAB + emailOrDesignation + TAB + address;
-        if (indexToUpdate > -1 && indexToUpdate < sizesOfTables[tableDeterminant - 1]) {
-            data[indexToUpdate] = newTuple;
-        } else {
-            throw new FileNotFoundException("NO TUPLE FOUND TO UPDATE!");
+    public void update(int tableDeterminant, String id, String name, String emailOrDesignation, String address) throws IOException {
+        RandomAccessFile table = new RandomAccessFile(NAMES_OF_TABLES[tableDeterminant - 1], "rws");
+        int position = searchPos(tableDeterminant, id);
+        String record = makeRecord(tableDeterminant, id, name, emailOrDesignation, address);
+        table.seek(position);
+        table.write(record.getBytes());
+        table.close();
+    }
+
+    private static int searchPos(int tableDeterminant, String id) throws IOException {
+        int finalPosition;
+        RandomAccessFile table = new RandomAccessFile(NAMES_OF_TABLES[tableDeterminant - 1], "rws");
+        table.seek(METADATA_BEGINNING_POSITION);
+        String metadataLine = table.readLine();
+        table.close();
+        String[] metadata = metadataLine.trim().split("\\t");
+        String[] ids = metadata[1].trim().split("\\s");
+        for (int i = 0; i < ids.length; i++) {
+            if (ids[i].equals(id)) {
+                finalPosition = i * sizesOfRecords[tableDeterminant - 1];
+                return finalPosition;
+            }
         }
-        writeDataToArray(tableDeterminant);
+        return -1;
     }
 
     @Override
-    public int search(int tableDeterminant, String id, String name, String emailOrDesignation, String address) throws IOException {
-        readDataToArray(tableDeterminant);
-        String tupleToFind = id + TAB + name + TAB + emailOrDesignation + TAB + address;
-        for (int i = 0; i < sizesOfTables[tableDeterminant - 1]; i++) {
-            if (data[i].equals(tupleToFind)) {
-                return i;
-            }
-        }
+    public String search(int tableDeterminant, String id) throws IOException {
+        int position = searchPos(tableDeterminant, id);
+        if (position == -1) {
+            return "RECORD NOT FOUND!";
+        } else {
+            String record = EMPTY;
 
-        return NOT_FOUND;
+            RandomAccessFile table = new RandomAccessFile(NAMES_OF_TABLES[tableDeterminant - 1], "rws");
+            table.seek(position);
+            byte[] recordInBytes = new byte[sizesOfRecords[tableDeterminant - 1]];
+            table.read(recordInBytes);
+            for (int i = 0; i < recordInBytes.length; i++) {
+                record = record + (char) recordInBytes[i];
+            }
+            return record;
+        }
     }
 
-    private void writeDataToArray(int tableDeterminant) throws IOException {
-        PrintWriter printWriter;
-        if (tableDeterminant == 1) {
-            printWriter = new PrintWriter(new BufferedWriter(new FileWriter(TABLE_1)));
-        } else {
-            printWriter = new PrintWriter(new BufferedWriter(new FileWriter(TABLE_2)));
-        }
+    private String makeRecord(int tableDeterminant, String id, String name, String emailOrDesignation, String address) {
+        String record;
 
-        for (int i = 0; i < data.length; i++) {
-            printWriter.write(data[i]);
-            if (i != data.length - 1) {
-                printWriter.println();
+        String finalID = EMPTY;
+        for (int i = 0; i < ID_LENGTH - id.length(); i++) {
+            finalID = finalID + SPACE;
+        }
+        finalID = finalID + id;
+
+        String finalName = EMPTY;
+        for (int i = 0; i < NAME_LENGTH - name.length(); i++) {
+            finalName = finalName + SPACE;
+        }
+        finalName = finalName + name;
+
+        String finalEmailOrDesignation = EMPTY;
+        if (tableDeterminant == 1) {
+            for (int i = 0; i < EMAIL_LENGTH - emailOrDesignation.length(); i++) {
+                finalEmailOrDesignation = finalEmailOrDesignation + SPACE;
+            }
+        } else {
+            for (int i = 0; i < DESIGNATION_LENGTH - emailOrDesignation.length(); i++) {
+                finalEmailOrDesignation = finalEmailOrDesignation + SPACE;
             }
         }
+        finalEmailOrDesignation = finalEmailOrDesignation + emailOrDesignation;
 
-        printWriter.close();
-    }
-
-    private void readDataToArray(int tableDeterminant) throws FileNotFoundException {
-        Scanner scanner;
-        if (tableDeterminant == 1) {
-            scanner = new Scanner(new File(TABLE_1));
-        } else {
-            scanner = new Scanner(new File(TABLE_2));
+        String finalAddress = EMPTY;
+        for (int i = 0; i < ADDRESS_LENGTH - address.length(); i++) {
+            finalAddress = finalAddress + SPACE;
         }
+        finalAddress = finalAddress + address;
 
-        int i = 0;
-        while (scanner.hasNextLine()) {
-            data[i] = scanner.nextLine().trim();
-            i++;
-        }
+        record = finalID + finalName + finalEmailOrDesignation + finalAddress;
 
-        scanner.close();
+        return record;
     }
 }

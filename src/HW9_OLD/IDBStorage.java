@@ -1,10 +1,9 @@
-package HW9_V2;
+package HW9_OLD;
 
 import java.io.IOException;
 
 /**
  * @author Sherafgan Kandov
- *         21.10.2015
  */
 public interface IDBStorage {
 
@@ -14,5 +13,5 @@ public interface IDBStorage {
 
     public void update(int tableDeterminant, String oldId, String oldName, String oldEmailOrDesignation, String oldAddress, String id, String name, String emailOrDesignation, String address) throws IOException;
 
-    public long search(int tableDeterminant, String id, String name, String emailOrDesignation, String address) throws IOException;
+    public int search(int tableDeterminant, String id, String name, String emailOrDesignation, String address) throws IOException;
 }
