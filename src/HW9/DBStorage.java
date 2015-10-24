@@ -69,7 +69,6 @@ public class DBStorage implements IDBStorage {
     @Override
     public void insert(int tableDeterminant, String id, String name, String emailOrDesignation, String address) throws IOException {
         String newRecord = makeRecord(tableDeterminant, id, name, emailOrDesignation, address);
-//        String newRecord = id + SPACE + name + SPACE + emailOrDesignation + SPACE + address + TAB;
         RandomAccessFile table = new RandomAccessFile(NAMES_OF_TABLES[tableDeterminant - 1], "rws");
         table.seek(METADATA_BEGINNING_POSITION);
 
