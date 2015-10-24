@@ -59,13 +59,38 @@ public class FillStorage {
         System.out.println("======================================================================");
     }
 
+    private static String[] names;
+
+    static {
+        try {
+            names = getNames(FILL_NUMBER);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static String[] designations;
+
+    static {
+        try {
+            designations = getJobs();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static String[] addresses;
+
+    static {
+        try {
+            addresses = getAddresses();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private static ArrayList<String[]> randomEmployeesRecords(int n) throws IOException {
         ArrayList<String[]> employeeRecords = new ArrayList<>();
-
-        String[] names = getNames(n);
-        String[] designations = getJobs();
-        String[] addresses = getAddresses();
-
         for (int i = 0; i < n; i++) {
             String[] record = new String[4];
             record[0] = "" + (i + 1);
@@ -74,17 +99,13 @@ public class FillStorage {
             record[3] = addresses[i];
             employeeRecords.add(record);
         }
-
         return employeeRecords;
     }
 
+    private static String[] emails = getEmails(names);
+
     private static ArrayList<String[]> randomStudentsRecords(int n) throws IOException {
         ArrayList<String[]> studentsRecords = new ArrayList<>();
-
-        String[] names = getNames(n);
-        String[] emails = getEmails(names);
-        String[] addresses = getAddresses();
-
         for (int i = 0; i < n; i++) {
             String[] record = new String[4];
             record[0] = "" + (i + 1);
@@ -93,7 +114,6 @@ public class FillStorage {
             record[3] = addresses[i];
             studentsRecords.add(record);
         }
-
         return studentsRecords;
     }
 
