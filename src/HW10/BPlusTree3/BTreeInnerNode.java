@@ -1,4 +1,4 @@
-package HW10.BPlusTree;
+package HW10.BPlusTree3;
 
 class BTreeInnerNode<TKey extends Comparable<TKey>> extends BTreeNode<TKey> {
 	protected final static int INNERORDER = 4;

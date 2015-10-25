@@ -25,11 +25,6 @@ public class FillStorage {
     private static final int FILL_NUMBER = 1000;
 
     public static void main(String[] args) throws IOException {
-        FillStorage fillStorage = new FillStorage();
-        fillStorage.fill();
-    }
-
-    public void fill() throws IOException {
         DBStorage dbStorage = new DBStorage();
 
         ArrayList<String[]> studentsRecords = randomStudentsRecords(FILL_NUMBER);

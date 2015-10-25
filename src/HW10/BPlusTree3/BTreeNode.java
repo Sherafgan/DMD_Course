@@ -1,4 +1,4 @@
-package HW10.BPlusTree;
+package HW10.BPlusTree3;
 enum TreeNodeType {
 	InnerNode,
 	LeafNode
