@@ -52,6 +52,8 @@ public class FillStorage {
         System.out.println("TOTAL STUDENT RECORDS ADDED: " + numberOfStudentsRecords);
         System.out.println("TOTAL EMPLOYEES RECORDS ADDED: " + numberOfEmployeesRecords);
         System.out.println("======================================================================");
+
+        System.out.println(dbStorage.getCursorInFile());
     }
 
     private static String[] names;

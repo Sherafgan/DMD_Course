@@ -35,6 +35,10 @@ public class DBStorage implements IDBStorage {
 
     private long cursorInFile;
 
+    public DBStorage(int cursorInFile) {
+        this.cursorInFile = cursorInFile;
+    }
+
     public DBStorage() throws IOException {
         PrintWriter studentTable = new PrintWriter(new BufferedWriter(new FileWriter(NAMES_OF_TABLES[0])));
         PrintWriter employeeTable = new PrintWriter(new BufferedWriter(new FileWriter(NAMES_OF_TABLES[1])));
@@ -137,7 +141,7 @@ public class DBStorage implements IDBStorage {
     }
 
     @Override
-    public void delete(int tableDeterminant, String id, String name, String emailOrDesignation, String address) throws IOException {
+    public void delete(int tableDeterminant, String id) throws IOException {
         int position = searchPos(tableDeterminant, id);
         if (position == -1) {
             System.out.println("RECORD NOT FOUND!");
@@ -283,5 +287,9 @@ public class DBStorage implements IDBStorage {
         record = finalID + finalName + finalEmailOrDesignation + finalAddress;
 
         return record;
+    }
+
+    public long getCursorInFile() {
+        return cursorInFile;
     }
 }
